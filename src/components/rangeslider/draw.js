@@ -12,14 +12,15 @@ var d3 = require('d3');
 
 var Plotly = require('../../plotly');
 var Plots = require('../../plots/plots');
-var Axes = require('../../plots/cartesian/axes');
 var Lib = require('../../lib');
+
+var Cartesian = require('../../plots/cartesian');
+var Axes = require('../../plots/cartesian/axes');
 
 var dragElement = require('../dragelement');
 var setCursor = require('../../lib/setcursor');
 
 var constants = require('./constants');
-var rangePlot = require('./range_plot');
 
 
 module.exports = function(gd) {
@@ -283,6 +284,31 @@ function drawBg(rangeSlider, gd, axisOpts, opts) {
 }
 
 function drawRangePlot(rangeSlider, gd, axisOpts, opts) {
+    var subplotData = Axes.getSubplots(gd, axisOpts);
+
+    var rangePlots = rangeSlider.selectAll('g.' + constants.rangePlotClassName)
+        .data(subplotData, Lib.identity);
+
+    rangePlots.enter().append('g')
+        .attr('class', function(name) { return constants.rangePlotClassName + ' ' + name; });
+
+    rangePlots.order();
+
+    rangePlots.exit().remove();
+
+    rangePlots.each(function(name) {
+        var plotinfo = gd._fullLayout._plots.xy;
+
+
+        plotinfo.plotgroup = d3.select(this);
+
+        // ...
+
+        Cartesian.rangePlot(gd, plotinfo, gd.calcdata);
+    });
+}
+
+function _drawRangePlot(rangeSlider, gd, axisOpts, opts) {
     var rangePlots = rangePlot(gd, opts._width, opts._height);
 
     var gRangePlot = rangeSlider.selectAll('g.' + constants.rangePlotClassName)

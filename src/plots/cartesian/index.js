@@ -113,6 +113,35 @@ exports.plot = function(gd, traces, transitionOpts, makeOnCompleteCallback) {
     }
 };
 
+function plotOne(gd, plotinfo, cdSubplot) {
+    var fullLayout = gd._fullLayout,
+        modules = fullLayout._modules;
+
+    if(plotinfo.plot) {
+        plotinfo.plot.selectAll('g:not(.scatterlayer)').selectAll('g.trace').remove();
+    }
+
+    for(var j = 0; j < modules.length; j++) {
+        var _module = modules[j];
+
+        // skip over non-cartesian trace modules
+        if(_module.basePlotModule.name !== 'cartesian') continue;
+
+        // plot all traces of this type on this subplot at once
+        var cdModule = [];
+        for(var k = 0; k < cdSubplot.length; k++) {
+            var cd = cdSubplot[k],
+                trace = cd[0].trace;
+
+            if((trace._module === _module) && (trace.visible === true)) {
+                cdModule.push(cd);
+            }
+        }
+
+        _module.plot(gd, plotinfo, cdModule);
+    }
+}
+
 exports.clean = function(newFullData, newFullLayout, oldFullData, oldFullLayout) {
     var oldModules = oldFullLayout._modules || [],
         newModules = newFullLayout._modules || [];
@@ -167,28 +196,32 @@ exports.drawFramework = function(gd) {
         .data(subplotData, Lib.identity);
 
     subplotLayers.enter().append('g')
-        .classed('subplot', true);
+        .attr('class', function(name) { return 'subplot ' + name; });
 
     subplotLayers.order();
 
     subplotLayers.exit()
         .call(purgeSubplotLayers, fullLayout);
 
-    subplotLayers.each(function(subplot) {
-        var plotgroup = d3.select(this),
-            plotinfo = fullLayout._plots[subplot];
+    subplotLayers.each(function(name) {
+        var plotinfo = fullLayout._plots[name];
 
-        // references to any subplots overlaid on this one,
-        // filled in makeSubplotLayer
-        plotinfo.overlays = [];
+        plotinfo.plotgroup = d3.select(this);
 
-        plotgroup.call(makeSubplotLayer, gd, subplot);
+        makeSubplotLayer(plotinfo);
 
         // make separate drag layers for each subplot,
         // but append them to paper rather than the plot groups,
         // so they end up on top of the rest
-        plotinfo.draglayer = joinLayer(fullLayout._draggers, 'g', subplot);
+        plotinfo.draglayer = joinLayer(fullLayout._draggers, 'g', name);
     });
+};
+
+exports.rangePlot = function(gd, plotinfo, cdSubplot) {
+
+    makeSubplotLayer(plotinfo);
+
+    plotOne(gd, plotinfo, cdSubplot);
 };
 
 function makeSubplotData(gd) {
@@ -247,15 +280,11 @@ function makeSubplotData(gd) {
     return subplotData;
 }
 
-function makeSubplotLayer(plotgroup, gd, subplot) {
-    var fullLayout = gd._fullLayout,
-        plotinfo = fullLayout._plots[subplot];
+function makeSubplotLayer(plotinfo) {
+    var plotgroup = plotinfo.plotgroup;
 
-    // keep reference to plotgroup in _plots object
-    plotinfo.plotgroup = plotgroup;
-
-    // add class corresponding to the subplot id
-    plotgroup.classed(subplot, true);
+    // references to any subplots overlaid on this one,
+    plotinfo.overlays = [];
 
     // Layers to keep plot types in the right order.
     // from back to front:
