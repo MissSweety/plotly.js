@@ -316,7 +316,8 @@ function addClipPath(rangeSlider, gd, axisOpts, opts) {
 }
 
 function drawRangePlot(rangeSlider, gd, axisOpts, opts) {
-    var subplotData = Axes.getSubplots(gd, axisOpts);
+    var fullLayout = gd._fullLayout,
+        subplotData = Axes.getSubplots(gd, axisOpts);
 
     var rangePlots = rangeSlider.selectAll('g.' + constants.rangePlotClassName)
         .data(subplotData, Lib.identity);
@@ -331,13 +332,36 @@ function drawRangePlot(rangeSlider, gd, axisOpts, opts) {
 
     rangePlots.each(function(id) {
         var plotgroup = d3.select(this),
-            plotinfo = gd._fullLayout._plots.xy;
+            oppAxisOpts = Axes.getFromId(gd, axisOpts.anchor, 'y');
 
-        plotinfo.id = id;
-        plotinfo.plotgroup = plotgroup;
+        var mockFigure = {
+            data: [],
+            layout: {
+                xaxis:  {
+                    domain: axisOpts.domain.slice(),
+                    range: opts.range.slice()
+                },
+                yaxis: {
+                    domain: opts._ydomain,
+                    range: oppAxisOpts.range.slice()
+                }
+            }
+        };
 
-        plotinfo.yaxis.domain = opts._ydomain;
-        plotinfo.yaxis.setScale();
+        Plots.supplyDefaults(mockFigure);
+
+        var xa = mockFigure._fullLayout.xaxis,
+            ya = mockFigure._fullLayout.yaxis;
+
+        var plotinfo = {
+            id: id,
+            plotgroup: plotgroup,
+
+            xaxis: xa,
+            yaxis: ya,
+            x: function() { return xa; },
+            y: function() { return ya; },
+        };
 
         Cartesian.rangePlot(gd, plotinfo, gd.calcdata);
 
