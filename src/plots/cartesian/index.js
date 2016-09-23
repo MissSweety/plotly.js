@@ -185,9 +185,19 @@ exports.drawFramework = function(gd) {
     subplotLayers.each(function(name) {
         var plotinfo = fullLayout._plots[name];
 
+        // keep ref to plot group
         plotinfo.plotgroup = d3.select(this);
 
+        // initialize list of overlay subplots
+        plotinfo.overlays = [];
+
         makeSubplotLayer(plotinfo);
+
+        // fill in list of overlay subplots
+        if(plotinfo.mainplot) {
+            var mainplot = fullLayout._plots[plotinfo.mainplot];
+            mainplot.overlays.push(plotinfo);
+        }
 
         // make separate drag layers for each subplot,
         // but append them to paper rather than the plot groups,
@@ -236,6 +246,7 @@ function makeSubplotData(gd) {
         var mainplot = xa2._id + ya2._id;
         if(mainplot !== subplot && subplots.indexOf(mainplot) !== -1) {
             plotinfo.mainplot = mainplot;
+            plotinfo.mainplotinfo = fullLayout._plots[mainplot];
             overlays.push(subplot);
 
             // for now force overlays to overlay completely... so they
@@ -259,10 +270,8 @@ function makeSubplotData(gd) {
 }
 
 function makeSubplotLayer(plotinfo) {
-    var plotgroup = plotinfo.plotgroup;
-
-    // references to any subplots overlaid on this one,
-    plotinfo.overlays = [];
+    var plotgroup = plotinfo.plotgroup,
+        id = plotinfo.id;
 
     // Layers to keep plot types in the right order.
     // from back to front:
@@ -271,7 +280,7 @@ function makeSubplotLayer(plotinfo) {
     // 3. errorbars for bars and scatter
     // 4. scatter
     // 5. box plots
-    function plotLayers(parent) {
+    function joinPlotLayers(parent) {
         joinLayer(parent, 'g', 'imagelayer');
         joinLayer(parent, 'g', 'maplayer');
         joinLayer(parent, 'g', 'barlayer');
@@ -305,27 +314,25 @@ function makeSubplotLayer(plotinfo) {
         plotinfo.overaxes = joinLayer(plotgroup, 'g', 'overaxes');
     }
     else {
+        var mainplotinfo = plotinfo.mainplotinfo;
 
         // now make the components of overlaid subplots
         // overlays don't have backgrounds, and append all
         // their other components to the corresponding
         // extra groups of their main plots.
 
-        var mainplot = fullLayout._plots[plotinfo.mainplot];
-        mainplot.overlays.push(plotinfo);
+        plotinfo.gridlayer = joinLayer(mainplotinfo.overgrid, 'g', id);
+        plotinfo.zerolinelayer = joinLayer(mainplotinfo.overzero, 'g', id);
 
-        plotinfo.gridlayer = joinLayer(mainplot.overgrid, 'g', subplot);
-        plotinfo.zerolinelayer = joinLayer(mainplot.overzero, 'g', subplot);
-
-        plotinfo.plot = joinLayer(mainplot.overplot, 'g', subplot);
-        plotinfo.xlines = joinLayer(mainplot.overlines, 'path', subplot);
-        plotinfo.ylines = joinLayer(mainplot.overlines, 'path', subplot);
-        plotinfo.xaxislayer = joinLayer(mainplot.overaxes, 'g', subplot);
-        plotinfo.yaxislayer = joinLayer(mainplot.overaxes, 'g', subplot);
+        plotinfo.plot = joinLayer(mainplotinfo.overplot, 'g', id);
+        plotinfo.xlines = joinLayer(mainplotinfo.overlines, 'path', id);
+        plotinfo.ylines = joinLayer(mainplotinfo.overlines, 'path', id);
+        plotinfo.xaxislayer = joinLayer(mainplotinfo.overaxes, 'g', id);
+        plotinfo.yaxislayer = joinLayer(mainplotinfo.overaxes, 'g', id);
     }
 
     // common attributes for all subplots, overlays or not
-    plotinfo.plot.call(plotLayers);
+    plotinfo.plot.call(joinPlotLayers);
 
     plotinfo.xlines
         .style('fill', 'none')
