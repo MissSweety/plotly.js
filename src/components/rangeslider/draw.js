@@ -86,6 +86,7 @@ module.exports = function(gd) {
             graphSize = fullLayout._size,
             domain = axisOpts.domain;
 
+        opts._id = constants.name + axisOpts._id;
         opts._width = graphSize.w * (domain[1] - domain[0]);
         opts._height = (fullLayout.height - margin.b - margin.t) * opts.thickness;
         opts._offsetShift = Math.floor(opts.borderwidth / 2);
@@ -128,7 +129,7 @@ module.exports = function(gd) {
 
         var bb = axisOpts._boundingBox ? axisOpts._boundingBox.height : 0;
 
-        Plots.autoMargin(gd, constants.name + axisOpts._id, {
+        Plots.autoMargin(gd, opts._id, {
             x: 0, y: 0, l: 0, r: 0, t: 0,
             b: opts._height + fullLayout.margin.b + bb,
             pad: 15 + opts._offsetShift * 2
