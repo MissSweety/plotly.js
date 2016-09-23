@@ -12,7 +12,10 @@ var d3 = require('d3');
 
 var Plotly = require('../../plotly');
 var Plots = require('../../plots/plots');
+
 var Lib = require('../../lib');
+var Drawing = require('../drawing');
+var Color = require('../color');
 
 var Cartesian = require('../../plots/cartesian');
 var Axes = require('../../plots/cartesian/axes');
@@ -56,7 +59,14 @@ module.exports = function(gd) {
         .classed(constants.containerClassName, true)
         .attr('pointer-events', 'all');
 
-    rangeSliders.exit().remove();
+    // remove exiting sliders and their corresponding clip paths
+    rangeSliders.exit().each(function(axisOpts) {
+        var rangeSlider = d3.select(this),
+            opts = axisOpts[constants.name];
+
+        rangeSlider.remove();
+        fullLayout._topdefs.select('#' + opts._clipId).remove();
+    });
 
     // remove push margin object(s)
     if(rangeSliders.exit().size()) clearPushMargins(gd);
@@ -64,7 +74,7 @@ module.exports = function(gd) {
     // return early if no range slider is visible
     if(rangeSliderData.length === 0) return;
 
-    // set new slider range using axis autorange if necessary
+    // compute new slider range using axis autorange if necessary
     newRangeSliders.each(function(axisOpts) {
         var opts = axisOpts[constants.name];
 
@@ -75,7 +85,7 @@ module.exports = function(gd) {
         }
     });
 
-    // for all present range slides
+    // for all present range sliders
     rangeSliders.each(function(axisOpts) {
         var rangeSlider = d3.select(this),
             opts = axisOpts[constants.name];
@@ -87,8 +97,11 @@ module.exports = function(gd) {
             domain = axisOpts.domain;
 
         opts._id = constants.name + axisOpts._id;
+        opts._clipId = opts._id + '-' + fullLayout._uid;
+
         opts._width = graphSize.w * (domain[1] - domain[0]);
         opts._height = (fullLayout.height - margin.b - margin.t) * opts.thickness;
+        opts._ydomain = [0, opts._height / graphSize.h];
         opts._offsetShift = Math.floor(opts.borderwidth / 2);
 
         var x = margin.l + (graphSize.w * domain[0]),
@@ -100,6 +113,7 @@ module.exports = function(gd) {
 
         rangeSlider
             .call(drawBg, gd, axisOpts, opts)
+            .call(addClipPath, gd, axisOpts, opts)
             .call(drawRangePlot, gd, axisOpts, opts)
             .call(drawMasks, gd, axisOpts, opts)
             .call(drawSlideBox, gd, axisOpts, opts)
@@ -284,6 +298,23 @@ function drawBg(rangeSlider, gd, axisOpts, opts) {
     });
 }
 
+function addClipPath(rangeSlider, gd, axisOpts, opts) {
+    var fullLayout = gd._fullLayout;
+
+    var clipPath = fullLayout._topdefs.selectAll('#' + opts._clipId)
+        .data([0]);
+
+    clipPath.enter().append('clipPath')
+        .attr('id', opts._clipId)
+        .append('rect')
+        .attr({ x: 0, y: 0 });
+
+    clipPath.select('rect').attr({
+        width: opts._width,
+        height: opts._height
+    });
+}
+
 function drawRangePlot(rangeSlider, gd, axisOpts, opts) {
     var subplotData = Axes.getSubplots(gd, axisOpts);
 
@@ -291,35 +322,27 @@ function drawRangePlot(rangeSlider, gd, axisOpts, opts) {
         .data(subplotData, Lib.identity);
 
     rangePlots.enter().append('g')
-        .attr('class', function(name) { return constants.rangePlotClassName + ' ' + name; });
+        .attr('class', function(id) { return constants.rangePlotClassName + ' ' + id; })
+        .call(Drawing.setClipUrl, opts._clipId);
 
     rangePlots.order();
 
     rangePlots.exit().remove();
 
-    rangePlots.each(function(name) {
-        var plotinfo = gd._fullLayout._plots.xy;
+    rangePlots.each(function(id) {
+        var plotgroup = d3.select(this),
+            plotinfo = gd._fullLayout._plots.xy;
 
+        plotinfo.id = id;
+        plotinfo.plotgroup = plotgroup;
 
-        plotinfo.plotgroup = d3.select(this);
-
-        // ...
+        plotinfo.yaxis.domain = opts._ydomain;
+        plotinfo.yaxis.setScale();
 
         Cartesian.rangePlot(gd, plotinfo, gd.calcdata);
+
+        plotinfo.bg.call(Color.fill, opts.bgcolor);
     });
-}
-
-function _drawRangePlot(rangeSlider, gd, axisOpts, opts) {
-    var rangePlots = rangePlot(gd, opts._width, opts._height);
-
-    var gRangePlot = rangeSlider.selectAll('g.' + constants.rangePlotClassName)
-        .data([0]);
-
-    gRangePlot.enter().append('g')
-        .classed(constants.rangePlotClassName, true);
-
-    gRangePlot.html(null);
-    gRangePlot.node().appendChild(rangePlots);
 }
 
 function drawMasks(rangeSlider, gd, axisOpts, opts) {
