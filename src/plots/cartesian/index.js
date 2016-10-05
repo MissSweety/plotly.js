@@ -359,7 +359,6 @@ function purgeSubplotLayers(layers, fullLayout) {
     });
 }
 
-
 function joinLayer(parent, nodeType, className) {
     var layer = parent.selectAll('.' + className)
         .data([0]);
