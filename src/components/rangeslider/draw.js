@@ -312,8 +312,8 @@ function addClipPath(rangeSlider, gd, axisOpts, opts) {
 }
 
 function drawRangePlot(rangeSlider, gd, axisOpts, opts) {
-    var fullLayout = gd._fullLayout,
-        subplotData = Axes.getSubplots(gd, axisOpts);
+    var subplotData = Axes.getSubplots(gd, axisOpts),
+        calcData = gd.calcdata;
 
     var rangePlots = rangeSlider.selectAll('g.' + constants.rangePlotClassName)
         .data(subplotData, Lib.identity);
@@ -326,43 +326,70 @@ function drawRangePlot(rangeSlider, gd, axisOpts, opts) {
 
     rangePlots.exit().remove();
 
-    rangePlots.each(function(id) {
+    var mainplotinfo;
+
+    rangePlots.each(function(id, i) {
         var plotgroup = d3.select(this),
-            oppAxisOpts = Axes.getFromId(gd, axisOpts.anchor, 'y');
+            isMainPlot = (i === 0);
+
+        var oppAxisOpts = Axes.getFromId(gd, id, 'y'),
+            oppAxisName = oppAxisOpts._name;
 
         var mockFigure = {
             data: [],
             layout: {
-                xaxis:  {
-                    domain: axisOpts.domain.slice(),
+                xaxis: {
+                    domain: [0, 1],
                     range: opts.range.slice()
                 },
-                yaxis: {
-                    domain: opts._ydomain,
-                    range: oppAxisOpts.range.slice()
-                }
+                width: opts._width,
+                height: opts._height,
+                margin: { t: 0, b: 0, l: 0, r: 0 }
             }
+        };
+
+        mockFigure.layout[oppAxisName] = {
+            domain: [0, 1],
+            range: oppAxisOpts.range.slice()
         };
 
         Plots.supplyDefaults(mockFigure);
 
         var xa = mockFigure._fullLayout.xaxis,
-            ya = mockFigure._fullLayout.yaxis;
+            ya = mockFigure._fullLayout[oppAxisName];
 
         var plotinfo = {
             id: id,
             plotgroup: plotgroup,
-
             xaxis: xa,
-            yaxis: ya,
-            x: function() { return xa; },
-            y: function() { return ya; },
+            yaxis: ya
         };
 
-        Cartesian.rangePlot(gd, plotinfo, gd.calcdata);
+        if(isMainPlot) mainplotinfo = plotinfo;
+        else {
+            plotinfo.mainplot = 'xy';
+            plotinfo.mainplotinfo = mainplotinfo;
+        }
 
-        plotinfo.bg.call(Color.fill, opts.bgcolor);
+        Cartesian.rangePlot(gd, plotinfo, filterRangePlotCalcData(calcData, id));
+
+        if(isMainPlot) plotinfo.bg.call(Color.fill, opts.bgcolor);
     });
+}
+
+function filterRangePlotCalcData(calcData, subplotId) {
+    var out = [];
+
+    for(var i = 0; i < calcData.length; i++) {
+        var calcTrace = calcData[i],
+            trace = calcTrace[0].trace;
+
+        if(trace.xaxis + trace.yaxis === subplotId) {
+            out.push(calcTrace);
+        }
+    }
+
+    return out;
 }
 
 function drawMasks(rangeSlider, gd, axisOpts, opts) {
