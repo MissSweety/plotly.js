@@ -10,7 +10,7 @@ var destroyGraphDiv = require('../assets/destroy_graph_div');
 var mouseEvent = require('../assets/mouse_event');
 var customMatchers = require('../assets/custom_matchers');
 
-var TOL = 5;
+var TOL = 6;
 
 
 describe('the range slider', function() {
