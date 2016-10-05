@@ -573,10 +573,6 @@ plots.linkSubplots = function(newFullData, newFullLayout, oldFullData, oldFullLa
 
     var ids = Plotly.Axes.getSubplots(mockGd);
 
-    function getAxisFunc(subplot, axLetter) {
-        return function() { return Plotly.Axes.getFromId(mockGd, subplot, axLetter); };
-    }
-
     for(var i = 0; i < ids.length; i++) {
         var id = ids[i],
             oldSubplot = oldSubplots[id],
@@ -590,10 +586,8 @@ plots.linkSubplots = function(newFullData, newFullLayout, oldFullData, oldFullLa
             plotinfo.id = id;
         }
 
-        plotinfo.x = getAxisFunc(id, 'x');
-        plotinfo.y = getAxisFunc(id, 'y');
-        plotinfo.xaxis = plotinfo.x();
-        plotinfo.yaxis = plotinfo.y();
+        plotinfo.xaxis = Plotly.Axes.getFromId(mockGd, id, 'x');
+        plotinfo.yaxis = Plotly.Axes.getFromId(mockGd, id, 'y');
     }
 };
 
@@ -824,6 +818,41 @@ function applyTransforms(fullTrace, fullData, layout) {
     var container = fullTrace.transforms,
         dataOut = [fullTrace];
 
+    var attributeSets = dataOut.map(function(trace) {
+
+        var arraySplitAttributes = [];
+
+        var stack = [];
+
+        /**
+         * A closure that gathers attribute paths into its enclosed arraySplitAttributes
+         * Attribute paths are collected iff their leaf node is a splittable attribute
+         * @callback callback
+         * @param {object} attr an attribute
+         * @param {String} attrName name string
+         * @param {object[]} attrs all the attributes
+         * @param {Number} level the recursion level, 0 at the root
+         * @closureVariable {String[][]} arraySplitAttributes the set of gathered attributes
+         *   Example of filled closure variable (expected to be initialized to []):
+         *        [["marker","size"],["marker","line","width"],["marker","line","color"]]
+         */
+        function callback(attr, attrName, attrs, level) {
+
+            stack = stack.slice(0, level).concat([attrName]);
+
+            var splittableAttr = attr.valType === 'data_array' || attr.arrayOk === true;
+            if(splittableAttr) {
+                arraySplitAttributes.push(stack.slice());
+            }
+        }
+
+        Lib.crawl(trace._module.attributes, callback);
+
+        return arraySplitAttributes.map(function(path) {
+            return path.join('.');
+        });
+    });
+
     for(var i = 0; i < container.length; i++) {
         var transform = container[i],
             type = transform.type,
@@ -834,7 +863,9 @@ function applyTransforms(fullTrace, fullData, layout) {
                 transform: transform,
                 fullTrace: fullTrace,
                 fullData: fullData,
-                layout: layout
+                attributeSets: attributeSets,
+                layout: layout,
+                transformIndex: i
             });
         }
     }
